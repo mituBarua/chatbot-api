@@ -4,7 +4,7 @@
   "description": "Cloudflare AI Chatbot API",
   "main": "src/index.ts",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --local",
     "deploy": "wrangler deploy",
     "build": "tsc"
   },

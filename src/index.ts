@@ -1,10 +1,13 @@
 import { DatabaseQueries } from './db/queries';
 import { requireAuth, sendError, sendSuccess } from './middleware/auth';
-import { AddKnowledgeRequest, ChatRequest, CreateBotRequest } from './types';
-
+import { CreateBotRequest, ChatRequest, AddKnowledgeRequest } from './types';
+import { selectRelevantKnowledge } from './utils/knowledge-selector';
+import { buildPrompt } from './utils/prompt-builder';
+import { AIService } from './utils/ai-services';
 
 interface Env {
   DB: D1Database;
+  AI: any;
   API_KEY: string;
   ENVIRONMENT: string;
 }
@@ -156,19 +159,11 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
     }
 
     if (!data.botId || !data.sessionId || !data.message) {
-      return sendError(
-        'MISSING_FIELDS',
-        'Required fields: botId, sessionId, message',
-        400
-      );
+      return sendError('MISSING_FIELDS', 'Required fields: botId, sessionId, message', 400);
     }
 
     if (data.message.length === 0 || data.message.length > 5000) {
-      return sendError(
-        'MESSAGE_TOO_LONG',
-        'Message must be between 1 and 5000 characters',
-        400
-      );
+      return sendError('MESSAGE_TOO_LONG', 'Message must be between 1 and 5000 characters', 400);
     }
 
     const db = new DatabaseQueries(env.DB);
@@ -178,45 +173,75 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
     }
 
     const now = new Date();
-    const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
-      2,
-      '0'
-    )}`;
+    const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
     const usage = await db.getOrCreateUsage(data.botId, yearMonth);
     const remaining = bot.monthlyLimit - usage.messageCount;
 
     if (remaining <= 0) {
-      return sendError(
-        'LIMIT_EXCEEDED',
-        'This bot has reached its monthly message limit',
-        429
-      );
+      return sendError('LIMIT_EXCEEDED', 'This bot has reached its monthly message limit', 429);
     }
 
-    // TODO: Implement AI call
-    const aiReply = '[AI response will be generated here]';
+    // Get knowledge and conversation history
+    const allKnowledge = await db.getKnowledgeByBotId(data.botId);
+    const conversationHistory = await db.getConversationHistory(data.botId, data.sessionId);
 
-    const conversationId = `conv_${crypto.randomUUID().split('-')[0]}`;
-    await db.saveConversation(
-      conversationId,
-      data.botId,
-      data.sessionId,
-      data.message,
-      aiReply
-    );
+    // Select relevant knowledge
+    const relevantKnowledge = selectRelevantKnowledge(data.message, allKnowledge);
+    console.log(`[Chat] Knowledge records: ${relevantKnowledge.length}`);
 
-    await db.incrementMessageCount(data.botId, yearMonth);
+    // Build prompt inline
+    let promptText = bot.systemPrompt + '\n\n';
+    
+    if (relevantKnowledge.length > 0) {
+      promptText += '## Knowledge Base\n';
+      relevantKnowledge.forEach(k => {
+        promptText += `- **${k.title}**: ${k.content}\n`;
+      });
+      promptText += '\n';
+    }
 
-    return sendSuccess({
-      success: true,
-      reply: aiReply,
-      usage: {
-        used: usage.messageCount + 1,
-        limit: bot.monthlyLimit,
-        remaining: remaining - 1
-      }
-    });
+    if (conversationHistory.length > 0) {
+      promptText += '## Recent Conversation\n';
+      conversationHistory.forEach(msg => {
+        promptText += `Customer: ${msg.userMessage}\nAssistant: ${msg.aiReply}\n`;
+      });
+      promptText += '\n';
+    }
+
+    promptText += `Customer: ${data.message}\nAssistant:`;
+    
+    console.log(`[Chat] Prompt ready, length: ${promptText.length}`);
+
+    // Call AI
+    try {
+      const aiService = new AIService(env.AI);
+      const aiReply = await aiService.generateReply(promptText);
+
+      const conversationId = `conv_${crypto.randomUUID().split('-')[0]}`;
+      await db.saveConversation(
+        conversationId,
+        data.botId,
+        data.sessionId,
+        data.message,
+        aiReply
+      );
+
+      await db.incrementMessageCount(data.botId, yearMonth);
+
+      return sendSuccess({
+        success: true,
+        reply: aiReply,
+        usage: {
+          used: usage.messageCount + 1,
+          limit: bot.monthlyLimit,
+          remaining: remaining - 1
+        }
+      });
+    } catch (aiError: any) {
+      console.error('[Chat] AI Error:', aiError?.message || aiError);
+      return sendError('AI_ERROR', 'Failed to generate AI response', 500);
+    }
   } catch (error) {
     console.error('Error in chat:', error);
     return sendError('INTERNAL_ERROR', 'Failed to process chat message', 500);

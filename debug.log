@@ -1,0 +1,73 @@
+
+ ⛅️ wrangler 4.127.1
+────────────────────
+Using secrets defined in .env.local
+Your Worker has access to the following bindings:
+Binding                       Resource                  Mode
+env.DB (chatbot_db)           D1 Database               local
+env.AI                        AI                        not supported
+env.API_KEY ("(hidden)")      Environment Variable      local
+
+[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mAI bindings always access remote resources, and so may incur usage charges even in local dev. To suppress this warning, set `remote: true` for the binding definition in your configuration file.[0m
+
+
+⎔ Starting local server...
+[wrangler:info] Ready on http://localhost:8787
+[Chat] Creating AI service, env.AI type: object
+[AIService] AI binding type: object
+[AIService] Has run method: true
+[AIService] Mode: REAL (remote)
+[Chat] Calling generateReply...
+[31m✘ [41;31m[[41;97mERROR[41;31m][0m [1m[Chat] AI error caught: ReferenceError: prompt is not defined[0m
+
+      at handleChat (file:///Users/mitubarua/Documents/cloudflare-chatbot-api/src/index.ts:159:53)
+      at Object.fetch (file:///Users/mitubarua/Documents/cloudflare-chatbot-api/src/index.ts:40:16)
+      at fetchDispatcher (file:///Users/mitubarua/Documents/cloudflare-chatbot-api/.wrangler/tmp/bundle-7qWnek/middleware-loader.entry.ts:54:17)
+      at __facade_invokeChain__ (file:///Users/mitubarua/Documents/cloudflare-chatbot-api/node_modules/wrangler/templates/middleware/common.ts:53:9)
+      at Object.next (file:///Users/mitubarua/Documents/cloudflare-chatbot-api/node_modules/wrangler/templates/middleware/common.ts:50:11)
+      at jsonError (file:///Users/mitubarua/Documents/cloudflare-chatbot-api/node_modules/wrangler/templates/middleware/middleware-miniflare3-json-error.ts:22:30)
+      at __facade_invokeChain__ (file:///Users/mitubarua/Documents/cloudflare-chatbot-api/node_modules/wrangler/templates/middleware/common.ts:53:9)
+      at Object.next (file:///Users/mitubarua/Documents/cloudflare-chatbot-api/node_modules/wrangler/templates/middleware/common.ts:50:11)
+      at drainBody (file:///Users/mitubarua/Documents/cloudflare-chatbot-api/node_modules/wrangler/templates/middleware/middleware-ensure-req-body-drained.ts:5:30)
+      at __facade_invokeChain__ (file:///Users/mitubarua/Documents/cloudflare-chatbot-api/node_modules/wrangler/templates/middleware/common.ts:53:9)
+
+
+[31m✘ [41;31m[[41;97mERROR[41;31m][0m [1m[Chat] AI error message: prompt is not defined[0m
+
+
+[31m✘ [41;31m[[41;97mERROR[41;31m][0m [1m[Chat] AI error stack: ReferenceError: prompt is not defined[0m
+
+      at handleChat (file:///Users/mitubarua/Documents/cloudflare-chatbot-api/src/index.ts:159:53)
+      at Object.fetch (file:///Users/mitubarua/Documents/cloudflare-chatbot-api/src/index.ts:40:16)
+      at fetchDispatcher (file:///Users/mitubarua/Documents/cloudflare-chatbot-api/.wrangler/tmp/bundle-7qWnek/middleware-loader.entry.ts:54:17)
+      at __facade_invokeChain__ (file:///Users/mitubarua/Documents/cloudflare-chatbot-api/node_modules/wrangler/templates/middleware/common.ts:53:9)
+      at Object.next (file:///Users/mitubarua/Documents/cloudflare-chatbot-api/node_modules/wrangler/templates/middleware/common.ts:50:11)
+      at jsonError (file:///Users/mitubarua/Documents/cloudflare-chatbot-api/node_modules/wrangler/templates/middleware/middleware-miniflare3-json-error.ts:22:30)
+      at __facade_invokeChain__ (file:///Users/mitubarua/Documents/cloudflare-chatbot-api/node_modules/wrangler/templates/middleware/common.ts:53:9)
+      at Object.next (file:///Users/mitubarua/Documents/cloudflare-chatbot-api/node_modules/wrangler/templates/middleware/common.ts:50:11)
+      at drainBody (file:///Users/mitubarua/Documents/cloudflare-chatbot-api/node_modules/wrangler/templates/middleware/middleware-ensure-req-body-drained.ts:5:30)
+      at __facade_invokeChain__ (file:///Users/mitubarua/Documents/cloudflare-chatbot-api/node_modules/wrangler/templates/middleware/common.ts:53:9)
+
+
+[wrangler:info] POST /api/chat 500 Internal Server Error (23ms)
+[31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mBuild failed with 1 error:[0m
+
+  [31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mUnexpected end of file[0m
+  
+      src/index.ts:263:1:
+  [37m      263 │ }[32m[37m
+            ╵  [32m^[0m
+  
+  
+
+
+[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mAI bindings always access remote resources, and so may incur usage charges even in local dev. To suppress this warning, set `remote: true` for the binding definition in your configuration file.[0m
+
+
+⎔ Reloading local server...
+⎔ Local server updated and ready
+[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mAI bindings always access remote resources, and so may incur usage charges even in local dev. To suppress this warning, set `remote: true` for the binding definition in your configuration file.[0m
+
+
+⎔ Reloading local server...
+⎔ Local server updated and ready
