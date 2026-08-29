@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+/venv/
+
+# Environment variables & secrets
+.env
+*.pem
+*.key
+
+# Build and Output
+dist/
+build/
+*.exe
+*.out
+
+# System files & IDE configs
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+*.log
