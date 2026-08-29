@@ -234,7 +234,9 @@ npm run deploy
 This deploys to your Cloudflare Workers account.
 
 ## Project Structure
+
 src/
+
 ├── index.ts # Main handler
 ├── types/index.ts # TypeScript types
 ├── db/
