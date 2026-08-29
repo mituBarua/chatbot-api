@@ -10,8 +10,9 @@ database_name = "chatbot_db"
 database_id = "273f1b2d-0b96-4755-a0b9-e33020b2d111"  
 
 # Environment variables
-[env.production]
+[env.production]   
 vars = { ENVIRONMENT = "production" }
+secrets = []
 
 [env.development]
 vars = { ENVIRONMENT = "development" }
