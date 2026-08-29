@@ -1,8 +1,9 @@
 import { DatabaseQueries } from './db/queries';
 import { requireAuth, sendError, sendSuccess } from './middleware/auth';
+import { generateRequestId, extractRequestId } from './middleware/request-id';
+import { checkRateLimit, getRateLimitInfo } from './middleware/rate-limit';
 import { CreateBotRequest, ChatRequest, AddKnowledgeRequest } from './types';
 import { selectRelevantKnowledge } from './utils/knowledge-selector';
-import { buildPrompt } from './utils/prompt-builder';
 import { AIService } from './utils/ai-services';
 
 interface Env {
@@ -17,39 +18,45 @@ export default {
     const url = new URL(request.url);
     const method = request.method;
     const path = url.pathname;
+    const requestId = extractRequestId(request);
 
     try {
       // Health check
       if (path === '/health' && method === 'GET') {
+        console.log(`[${requestId}] GET /health`);
         return sendSuccess({ status: 'ok', timestamp: new Date().toISOString() });
       }
 
       // Create bot
       if (path === '/api/bots' && method === 'POST') {
-        return handleCreateBot(request, env);
+        console.log(`[${requestId}] POST /api/bots`);
+        return handleCreateBot(request, env, requestId);
       }
 
       // Add knowledge
       if (path.match(/^\/api\/bots\/[^/]+\/knowledge$/) && method === 'POST') {
         const botId = path.split('/')[3];
-        return handleAddKnowledge(request, env, botId);
+        console.log(`[${requestId}] POST /api/bots/${botId}/knowledge`);
+        return handleAddKnowledge(request, env, botId, requestId);
       }
 
       // Chat
       if (path === '/api/chat' && method === 'POST') {
-        return handleChat(request, env);
+        console.log(`[${requestId}] POST /api/chat`);
+        return handleChat(request, env, requestId);
       }
 
       // Stats
       if (path.match(/^\/api\/bots\/[^/]+\/stats$/) && method === 'GET') {
         const botId = path.split('/')[3];
-        return handleGetStats(request, env, botId);
+        console.log(`[${requestId}] GET /api/bots/${botId}/stats`);
+        return handleGetStats(request, env, botId, requestId);
       }
 
       // 404
       return sendError('NOT_FOUND', 'Endpoint not found', 404);
     } catch (error) {
-      console.error('Unhandled error:', error);
+      console.error(`[${requestId}] Unhandled error:`, error);
       return sendError('INTERNAL_ERROR', 'Internal server error', 500);
     }
   }
@@ -57,10 +64,11 @@ export default {
 
 // ========== HANDLERS ==========
 
-async function handleCreateBot(request: Request, env: Env): Promise<Response> {
+async function handleCreateBot(request: Request, env: Env, requestId: string): Promise<Response> {
   try {
     const apiKey = await requireAuth(request, env);
     if (!apiKey) {
+      console.warn(`[${requestId}] Unauthorized bot creation attempt`);
       return sendError('UNAUTHORIZED', 'Missing or invalid API key', 401);
     }
 
@@ -87,9 +95,10 @@ async function handleCreateBot(request: Request, env: Env): Promise<Response> {
     const db = new DatabaseQueries(env.DB);
     const bot = await db.createBot(botId, data);
 
+    console.log(`[${requestId}] Bot created: ${botId}`);
     return sendSuccess({ success: true, bot }, 201);
   } catch (error) {
-    console.error('Error creating bot:', error);
+    console.error(`[${requestId}] Error creating bot:`, error);
     return sendError('INTERNAL_ERROR', 'Failed to create bot', 500);
   }
 }
@@ -97,11 +106,13 @@ async function handleCreateBot(request: Request, env: Env): Promise<Response> {
 async function handleAddKnowledge(
   request: Request,
   env: Env,
-  botId: string
+  botId: string,
+  requestId: string
 ): Promise<Response> {
   try {
     const apiKey = await requireAuth(request, env);
     if (!apiKey) {
+      console.warn(`[${requestId}] Unauthorized knowledge add attempt for bot ${botId}`);
       return sendError('UNAUTHORIZED', 'Missing or invalid API key', 401);
     }
 
@@ -133,9 +144,10 @@ async function handleAddKnowledge(
     const knowledgeId = `knowledge_${crypto.randomUUID().split('-')[0]}`;
     const knowledge = await db.addKnowledge(knowledgeId, botId, data.title, data.content);
 
+    console.log(`[${requestId}] Knowledge added to ${botId}: ${knowledgeId}`);
     return sendSuccess({ success: true, knowledge }, 201);
   } catch (error: any) {
-    console.error('Error adding knowledge:', error);
+    console.error(`[${requestId}] Error adding knowledge:`, error);
 
     if (error.message?.includes('UNIQUE constraint failed')) {
       return sendError(
@@ -149,8 +161,16 @@ async function handleAddKnowledge(
   }
 }
 
-async function handleChat(request: Request, env: Env): Promise<Response> {
+async function handleChat(request: Request, env: Env, requestId: string): Promise<Response> {
   try {
+    // Rate limit: 30 requests per 60 seconds per IP
+    const clientIp = request.headers.get('cf-connecting-ip') || 'unknown';
+    if (!checkRateLimit(clientIp, 60, 30)) {
+      const info = getRateLimitInfo(clientIp);
+      console.warn(`[${requestId}] Rate limit exceeded for ${clientIp}`);
+      return sendError('RATE_LIMITED', `Too many requests. Reset at ${new Date(info.resetAt).toISOString()}`, 429);
+    }
+
     let data: ChatRequest;
     try {
       data = await request.json();
@@ -159,11 +179,19 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
     }
 
     if (!data.botId || !data.sessionId || !data.message) {
-      return sendError('MISSING_FIELDS', 'Required fields: botId, sessionId, message', 400);
+      return sendError(
+        'MISSING_FIELDS',
+        'Required fields: botId, sessionId, message',
+        400
+      );
     }
 
     if (data.message.length === 0 || data.message.length > 5000) {
-      return sendError('MESSAGE_TOO_LONG', 'Message must be between 1 and 5000 characters', 400);
+      return sendError(
+        'MESSAGE_TOO_LONG',
+        'Message must be between 1 and 5000 characters',
+        400
+      );
     }
 
     const db = new DatabaseQueries(env.DB);
@@ -179,7 +207,11 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
     const remaining = bot.monthlyLimit - usage.messageCount;
 
     if (remaining <= 0) {
-      return sendError('LIMIT_EXCEEDED', 'This bot has reached its monthly message limit', 429);
+      return sendError(
+        'LIMIT_EXCEEDED',
+        'This bot has reached its monthly message limit',
+        429
+      );
     }
 
     // Get knowledge and conversation history
@@ -188,7 +220,7 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
 
     // Select relevant knowledge
     const relevantKnowledge = selectRelevantKnowledge(data.message, allKnowledge);
-    console.log(`[Chat] Knowledge records: ${relevantKnowledge.length}`);
+    console.log(`[${requestId}] Bot: ${data.botId}, Knowledge records: ${relevantKnowledge.length}`);
 
     // Build prompt inline
     let promptText = bot.systemPrompt + '\n\n';
@@ -211,12 +243,16 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
 
     promptText += `Customer: ${data.message}\nAssistant:`;
     
-    console.log(`[Chat] Prompt ready, length: ${promptText.length}`);
+    console.log(`[${requestId}] Prompt ready, length: ${promptText.length}`);
 
     // Call AI
     try {
+      const aiStartTime = Date.now();
       const aiService = new AIService(env.AI);
       const aiReply = await aiService.generateReply(promptText);
+      const aiTime = Date.now() - aiStartTime;
+
+      console.log(`[${requestId}] AI response time: ${aiTime}ms`);
 
       const conversationId = `conv_${crypto.randomUUID().split('-')[0]}`;
       await db.saveConversation(
@@ -239,11 +275,11 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
         }
       });
     } catch (aiError: any) {
-      console.error('[Chat] AI Error:', aiError?.message || aiError);
+      console.error(`[${requestId}] AI Error:`, aiError?.message || aiError);
       return sendError('AI_ERROR', 'Failed to generate AI response', 500);
     }
   } catch (error) {
-    console.error('Error in chat:', error);
+    console.error(`[${requestId}] Error in chat:`, error);
     return sendError('INTERNAL_ERROR', 'Failed to process chat message', 500);
   }
 }
@@ -251,7 +287,8 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
 async function handleGetStats(
   request: Request,
   env: Env,
-  botId: string
+  botId: string,
+  requestId: string
 ): Promise<Response> {
   try {
     const db = new DatabaseQueries(env.DB);
@@ -267,6 +304,8 @@ async function handleGetStats(
     )}`;
 
     const stats = await db.getStats(botId, yearMonth);
+
+    console.log(`[${requestId}] Stats retrieved for ${botId} (${yearMonth})`);
 
     if (!stats) {
       return sendSuccess({
@@ -286,7 +325,7 @@ async function handleGetStats(
       remaining: bot.monthlyLimit - stats.messageCount
     });
   } catch (error) {
-    console.error('Error getting stats:', error);
+    console.error(`[${requestId}] Error getting stats:`, error);
     return sendError('INTERNAL_ERROR', 'Failed to get stats', 500);
   }
 }

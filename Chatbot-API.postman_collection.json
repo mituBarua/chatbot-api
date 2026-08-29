@@ -1,0 +1,121 @@
+{
+  "info": {
+    "name": "Cloudflare Chatbot API",
+    "description": "Complete API for managing and using AI chatbots",
+    "version": "1.0.0"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        }
+      }
+    },
+    {
+      "name": "Create Bot",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Customer Support Bot\",\n  \"website\": \"support.example.com\",\n  \"systemPrompt\": \"You are a helpful customer support assistant. Be friendly and professional.\",\n  \"monthlyLimit\": 5000\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/bots",
+          "host": ["{{base_url}}"],
+          "path": ["api", "bots"]
+        }
+      }
+    },
+    {
+      "name": "Add Knowledge",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_key}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"Opening Hours\",\n  \"content\": \"We are open Monday to Friday from 9:00 AM to 5:00 PM EST. Closed on weekends and holidays.\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/bots/{{bot_id}}/knowledge",
+          "host": ["{{base_url}}"],
+          "path": ["api", "bots", "{{bot_id}}", "knowledge"]
+        }
+      }
+    },
+    {
+      "name": "Chat",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"botId\": \"{{bot_id}}\",\n  \"sessionId\": \"user_session_123\",\n  \"message\": \"What are your business hours?\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/chat",
+          "host": ["{{base_url}}"],
+          "path": ["api", "chat"]
+        }
+      }
+    },
+    {
+      "name": "Get Stats",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/bots/{{bot_id}}/stats",
+          "host": ["{{base_url}}"],
+          "path": ["api", "bots", "{{bot_id}}", "stats"]
+        }
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8787",
+      "type": "string"
+    },
+    {
+      "key": "api_key",
+      "value": "test-secret-key-123",
+      "type": "string"
+    },
+    {
+      "key": "bot_id",
+      "value": "bot_d3b4ed9b",
+      "type": "string"
+    }
+  ]
+}
