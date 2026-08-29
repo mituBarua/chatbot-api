@@ -1,18 +1,14 @@
 name = "chatbot-api"
-type = "service"
 main = "src/index.ts"
 compatibility_date = "2024-12-19"
 
-# D1 Database binding
 [[d1_databases]]
 binding = "DB"
 database_name = "chatbot_db"
-database_id = "273f1b2d-0b96-4755-a0b9-e33020b2d111"  
-
-# Environment variables
-[env.production]   
-vars = { ENVIRONMENT = "production" }
-secrets = []
+database_id = "273f1b2d-0b96-4755-a0b9-e33020b2d111"
 
 [env.development]
 vars = { ENVIRONMENT = "development" }
+
+[env.production]
+vars = { ENVIRONMENT = "production" }

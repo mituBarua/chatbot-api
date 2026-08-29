@@ -1,3 +1,8 @@
+interface Env {
+  DB: D1Database;
+  API_KEY: string;
+  ENVIRONMENT: string;
+}
 export async function requireAuth(request: Request, env: Env): Promise<string | null> {
   const authHeader = request.headers.get('authorization');
 

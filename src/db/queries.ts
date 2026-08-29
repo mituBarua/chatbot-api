@@ -3,10 +3,53 @@ import { Bot, Knowledge, Conversation, Usage } from '../types';
 export class DatabaseQueries {
   constructor(private db: D1Database) {}
 
+  private mapBotRow(row: any): Bot {
+    return {
+      id: row.id,
+      name: row.name,
+      website: row.website,
+      systemPrompt: row.system_prompt,
+      monthlyLimit: row.monthly_limit,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    };
+  }
+
+  private mapKnowledgeRow(row: any): Knowledge {
+    return {
+      id: row.id,
+      botId: row.bot_id,
+      title: row.title,
+      content: row.content,
+      createdAt: row.created_at
+    };
+  }
+
+  private mapConversationRow(row: any): Conversation {
+    return {
+      id: row.id,
+      botId: row.bot_id,
+      sessionId: row.session_id,
+      userMessage: row.user_message,
+      aiReply: row.ai_reply,
+      createdAt: row.created_at
+    };
+  }
+
+  private mapUsageRow(row: any): Usage {
+    return {
+      botId: row.bot_id,
+      yearMonth: row.year_month,
+      messageCount: row.message_count,
+      conversationCount: row.conversation_count,
+      updatedAt: row.updated_at
+    };
+  }
+
   // ========== BOTS ==========
 
   async createBot(id: string, data: any): Promise<Bot> {
-    const result = await this.db
+    await this.db
       .prepare(
         `INSERT INTO bots (id, name, website, system_prompt, monthly_limit)
          VALUES (?, ?, ?, ?, ?)`
@@ -14,26 +57,27 @@ export class DatabaseQueries {
       .bind(id, data.name, data.website || null, data.systemPrompt, data.monthlyLimit)
       .run();
 
-    if (!result.success) {
-      throw new Error('Failed to create bot');
-    }
+    const result = await this.db
+      .prepare('SELECT * FROM bots WHERE id = ?')
+      .bind(id)
+      .first();
 
-    return this.getBotById(id) as Promise<Bot>;
+    return this.mapBotRow(result);
   }
 
   async getBotById(botId: string): Promise<Bot | null> {
     const result = await this.db
       .prepare('SELECT * FROM bots WHERE id = ?')
       .bind(botId)
-      .first<Bot>();
+      .first();
 
-    return result || null;
+    return result ? this.mapBotRow(result) : null;
   }
 
   // ========== KNOWLEDGE ==========
 
   async addKnowledge(id: string, botId: string, title: string, content: string): Promise<Knowledge> {
-    const result = await this.db
+    await this.db
       .prepare(
         `INSERT INTO knowledge (id, bot_id, title, content)
          VALUES (?, ?, ?, ?)`
@@ -41,20 +85,21 @@ export class DatabaseQueries {
       .bind(id, botId, title, content)
       .run();
 
-    if (!result.success) {
-      throw new Error('Failed to add knowledge');
-    }
+    const result = await this.db
+      .prepare('SELECT * FROM knowledge WHERE id = ?')
+      .bind(id)
+      .first();
 
-    return { id, botId, title, content, createdAt: new Date().toISOString() };
+    return this.mapKnowledgeRow(result);
   }
 
   async getKnowledgeByBotId(botId: string): Promise<Knowledge[]> {
     const results = await this.db
-      .prepare('SELECT id, bot_id as botId, title, content, created_at as createdAt FROM knowledge WHERE bot_id = ?')
+      .prepare('SELECT * FROM knowledge WHERE bot_id = ? ORDER BY created_at DESC')
       .bind(botId)
-      .all<Knowledge>();
+      .all();
 
-    return results.results || [];
+    return (results.results || []).map(row => this.mapKnowledgeRow(row));
   }
 
   // ========== CONVERSATIONS ==========
@@ -66,7 +111,7 @@ export class DatabaseQueries {
     userMessage: string,
     aiReply: string
   ): Promise<Conversation> {
-    const result = await this.db
+    await this.db
       .prepare(
         `INSERT INTO conversations (id, bot_id, session_id, user_message, ai_reply)
          VALUES (?, ?, ?, ?, ?)`
@@ -74,33 +119,28 @@ export class DatabaseQueries {
       .bind(id, botId, sessionId, userMessage, aiReply)
       .run();
 
-    if (!result.success) {
-      throw new Error('Failed to save conversation');
-    }
+    const result = await this.db
+      .prepare('SELECT * FROM conversations WHERE id = ?')
+      .bind(id)
+      .first();
 
-    return {
-      id,
-      botId,
-      sessionId,
-      userMessage,
-      aiReply,
-      createdAt: new Date().toISOString()
-    };
+    return this.mapConversationRow(result);
   }
 
   async getConversationHistory(botId: string, sessionId: string, limit: number = 6): Promise<Conversation[]> {
     const results = await this.db
       .prepare(
-        `SELECT id, bot_id as botId, session_id as sessionId, user_message as userMessage, ai_reply as aiReply, created_at as createdAt
-         FROM conversations
+        `SELECT * FROM conversations
          WHERE bot_id = ? AND session_id = ?
          ORDER BY created_at DESC
          LIMIT ?`
       )
       .bind(botId, sessionId, limit)
-      .all<Conversation>();
+      .all();
 
-    return (results.results || []).reverse(); // Chronological order
+    return (results.results || [])
+      .reverse() // Get chronological order
+      .map(row => this.mapConversationRow(row));
   }
 
   // ========== USAGE ==========
@@ -109,7 +149,7 @@ export class DatabaseQueries {
     let usage = await this.db
       .prepare('SELECT * FROM usage WHERE bot_id = ? AND year_month = ?')
       .bind(botId, yearMonth)
-      .first<Usage>();
+      .first();
 
     if (!usage) {
       const id = `usage_${botId}_${yearMonth}`;
@@ -122,15 +162,15 @@ export class DatabaseQueries {
         .run();
 
       usage = {
-        botId,
-        yearMonth,
-        messageCount: 0,
-        conversationCount: 0,
-        updatedAt: new Date().toISOString()
+        bot_id: botId,
+        year_month: yearMonth,
+        message_count: 0,
+        conversation_count: 0,
+        updated_at: new Date().toISOString()
       };
     }
 
-    return usage;
+    return this.mapUsageRow(usage);
   }
 
   async incrementMessageCount(botId: string, yearMonth: string): Promise<void> {
@@ -145,9 +185,11 @@ export class DatabaseQueries {
   }
 
   async getStats(botId: string, yearMonth: string): Promise<Usage | null> {
-    return this.db
+    const result = await this.db
       .prepare('SELECT * FROM usage WHERE bot_id = ? AND year_month = ?')
       .bind(botId, yearMonth)
-      .first<Usage>();
+      .first();
+
+    return result ? this.mapUsageRow(result) : null;
   }
 }
