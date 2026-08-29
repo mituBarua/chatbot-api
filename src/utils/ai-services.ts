@@ -9,8 +9,6 @@ export class AIService {
   private isDev = false;
 
   constructor(private ai: any, options?: AIServiceOptions) {
-    // In local dev, AI binding exists but can't actually run
-    // We'll detect this when we try to use it
     this.isDev = !ai;
     
     console.log(`[AIService] AI available: ${!!ai}`);
@@ -39,7 +37,6 @@ export class AIService {
     } catch (error: any) {
       const msg = error?.message || String(error);
       
-      // If remote call fails in dev, use mock
       if (msg.includes('remotely') || msg.includes('not supported')) {
         console.log('[AI] Remote call not available, using mock');
         return this.mockReply(prompt);

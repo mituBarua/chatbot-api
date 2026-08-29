@@ -10,7 +10,7 @@ export async function requireAuth(request: Request, env: Env): Promise<string | 
     return null;
   }
 
-  const providedKey = authHeader.slice(7); // Remove "Bearer "
+  const providedKey = authHeader.slice(7); 
   const validKey = env.API_KEY;
 
   if (providedKey !== validKey) {

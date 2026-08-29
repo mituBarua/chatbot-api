@@ -1,5 +1,4 @@
-// Simple in-memory rate limiter for dev
-// In production, use Cloudflare KV
+
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
 
 export function checkRateLimit(identifier: string, windowSeconds: number = 60, maxRequests: number = 30): boolean {
